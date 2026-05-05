@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# local environment
+.env
+.env.local
+.env.*.local
+*.log
+
+# OS
+.DS_Store
+
+# local tooling/runtime state (not for OSS publishing)
+.omx/
+.sisyphus/
+.playwright-mcp/
+
+# internal planning / draft docs
+requirements.md
