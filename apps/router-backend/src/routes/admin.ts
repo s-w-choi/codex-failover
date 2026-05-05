@@ -28,8 +28,15 @@ export function createAdminRoutes(options: AdminRouteOptions): Hono {
 
   const syncConfig = () => syncConfigToActiveProvider(options.registry, options.routingService, options.configSwitcher);
 
-  app.get('/api/status', async (context) => {
+app.get('/api/status', async (context) => {
     const codexAuth = await codexAuthForStatus();
+    if (codexAuth.detected && !codexAuth.isExpired && codexAuth.accountId) {
+      const provisioned = await options.registry.autoProvisionOAuthProvider(codexAuth.accountId);
+      if (provisioned) {
+        options.routingService.updateProviders(options.registry.list());
+        await syncConfig();
+      }
+    }
     return context.json({
       activeProviderId: options.routingService.getActiveProvider(),
       providers: options.registry.listStates(options.routingService.getCooldownStates()),
