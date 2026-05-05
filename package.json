@@ -2,6 +2,7 @@
   "name": "codex-failover",
   "version": "0.1.0",
   "private": true,
+  "author": "s-w-choi <csw2757@naver.com>",
   "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {

@@ -18,6 +18,7 @@ coverage/
 
 # local tooling/runtime state (not for OSS publishing)
 .omx/
+.omc/
 .sisyphus/
 .playwright-mcp/
 
