@@ -7,6 +7,7 @@ const popupPath = join(__dirname, 'popup.html');
 const API_URL = 'http://127.0.0.1:8787/api';
 const TRAY_ICON_SIZE = 18;
 const USE_TEMPLATE_ICONS = process.env.CODEX_FAILOVER_TRAY_TEMPLATE === '1';
+const TRAY_STATUS_POLL_MS = 5_000;
 
 const iconFiles = {
   active: 'icon-active.png',
@@ -247,7 +248,7 @@ app.whenReady().then(() => {
   void pollStatus();
   setInterval(() => {
     void pollStatus();
-  }, 5_000);
+  }, TRAY_STATUS_POLL_MS);
 });
 
 app.on('window-all-closed', () => {
