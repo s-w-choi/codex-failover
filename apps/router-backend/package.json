@@ -1,0 +1,36 @@
+{
+  "name": "@codex-failover/router-backend",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "codex-failover": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/cli.js",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.config.ts tests/integration/",
+    "test:e2e": "vitest run --config vitest.config.ts tests/e2e/",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@codex-failover/credential-store": "workspace:*",
+    "@codex-failover/provider-core": "workspace:*",
+    "@codex-failover/shared": "workspace:*",
+    "@codex-failover/usage-tracker": "workspace:*",
+    "@hono/node-server": "^1.13.8",
+    "dotenv": "^16.4.7",
+    "hono": "^4.6.17"
+  },
+  "devDependencies": {
+    "@codex-failover/test-harness": "workspace:*",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

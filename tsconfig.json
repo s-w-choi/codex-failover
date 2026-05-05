@@ -1,0 +1,28 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/router-backend" },
+    { "path": "./packages/provider-core" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/test-harness" },
+    { "path": "./packages/credential-store" },
+    { "path": "./packages/usage-tracker" }
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  }
+}
