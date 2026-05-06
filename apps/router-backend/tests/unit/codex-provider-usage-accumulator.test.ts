@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -94,7 +94,7 @@ describe('CodexProviderUsageAccumulator', () => {
 
   it('attributes API deltas when Codex config points at the active API provider', async () => {
     activeProvider.providerId = 'openai';
-    modelProvider.providerName = 'openai-api';
+    modelProvider.providerName = 'openai';
     snapshot = snapshotWithUsage({ inputTokens: 100, outputTokens: 40, totalTokens: 140 }, { oauthLimits: true });
     const accumulator = createAccumulator([provider({ id: 'openai', type: 'openai-api-key' })]);
 
@@ -208,6 +208,96 @@ describe('CodexProviderUsageAccumulator', () => {
 
   function dailyUsage(providerId: string) {
     return usageStore.getDailyUsage({ providerId, startDate: '2026-01-15', endDate: '2026-01-15' })[0];
+  }
+});
+
+describe('CodexProviderUsageAccumulator migration', () => {
+  let tempDir: string;
+  let usageStore: UsageStore;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'codex-provider-usage-migration-'));
+    usageStore = new UsageStore(':memory:');
+  });
+
+  afterEach(async () => {
+    usageStore.close();
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('purges session-derived records when state file has wrong version', async () => {
+    const statePath = join(tempDir, 'state.json');
+    await writeFile(statePath, JSON.stringify({ v: 1, sessions: { 's1': { providerId: 'old', total: { inputTokens: 100, outputTokens: 40, totalTokens: 140 }, updatedAt: '2026-01-15T10:00:00Z' } } }));
+
+    usageStore.recordUsage({
+      id: 'polluted-1', providerId: 'old', model: 'gpt', inputTokens: 100, outputTokens: 40, cachedTokens: 0, reasoningTokens: 0, totalTokens: 140, costUsd: 0,
+      requestId: 'codex-session:s1:2026-01-15T10:00:00Z', requestCount: 0, timestamp: Date.UTC(2026, 0, 15, 10, 0),
+    });
+
+    const accumulator = createMigrationAccumulator(statePath);
+    await accumulator.sample();
+
+    expect(usageStore.getDailyUsage({ providerId: 'old', startDate: '2026-01-15', endDate: '2026-01-15' })).toHaveLength(0);
+  });
+
+  it('purges session-derived records when state file has corrupt JSON', async () => {
+    const statePath = join(tempDir, 'state.json');
+    await writeFile(statePath, '{not valid json');
+
+    usageStore.recordUsage({
+      id: 'polluted-2', providerId: 'old', model: 'gpt', inputTokens: 50, outputTokens: 20, cachedTokens: 0, reasoningTokens: 0, totalTokens: 70, costUsd: 0,
+      requestId: 'codex-session:s2:2026-01-15T10:00:00Z', requestCount: 0, timestamp: Date.UTC(2026, 0, 15, 10, 0),
+    });
+
+    const accumulator = createMigrationAccumulator(statePath);
+    await accumulator.sample();
+
+    expect(usageStore.getDailyUsage({ providerId: 'old', startDate: '2026-01-15', endDate: '2026-01-15' })).toHaveLength(0);
+  });
+
+  it('purges session-derived records when state file is missing', async () => {
+    const statePath = join(tempDir, 'state.json');
+
+    usageStore.recordUsage({
+      id: 'polluted-3', providerId: 'legacy', model: 'gpt', inputTokens: 200, outputTokens: 80, cachedTokens: 0, reasoningTokens: 0, totalTokens: 280, costUsd: 0,
+      requestId: 'codex-session:s3:2026-01-15T10:00:00Z', requestCount: 0, timestamp: Date.UTC(2026, 0, 15, 10, 0),
+    });
+
+    const accumulator = createMigrationAccumulator(statePath);
+    await accumulator.sample();
+
+    expect(usageStore.getDailyUsage({ providerId: 'legacy', startDate: '2026-01-15', endDate: '2026-01-15' })).toHaveLength(0);
+  });
+
+  it('does not purge non-session-derived records on migration', async () => {
+    const statePath = join(tempDir, 'state.json');
+
+    usageStore.recordUsage({
+      id: 'real-request', providerId: 'azure', model: 'gpt', inputTokens: 100, outputTokens: 40, cachedTokens: 0, reasoningTokens: 0, totalTokens: 140, costUsd: 0,
+      requestId: 'request-123', requestCount: 1, timestamp: Date.UTC(2026, 0, 15, 10, 0),
+    });
+
+    const accumulator = createMigrationAccumulator(statePath);
+    await accumulator.sample();
+
+    expect(usageStore.getDailyUsage({ providerId: 'azure', startDate: '2026-01-15', endDate: '2026-01-15' })[0]).toMatchObject({ totalTokens: 140 });
+  });
+
+  function createMigrationAccumulator(statePath: string): CodexProviderUsageAccumulator {
+    const registry = new ProviderRegistry(
+      [provider({ id: 'azure', type: 'azure-openai-api-key' })],
+      new CredentialStore(new MemoryKeychainBackend()),
+    );
+    const reader: CodexSessionUsageReader = { getLatestSnapshot: async () => undefined };
+    return new CodexProviderUsageAccumulator(
+      registry,
+      new MutableActiveProvider('azure'),
+      new MutableModelProvider('azure'),
+      reader,
+      usageStore,
+      new FakePricingProvider(),
+      { statePath, now: () => new Date(Date.UTC(2026, 0, 15, 12, 0)) },
+    );
   }
 });
 

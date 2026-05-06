@@ -122,7 +122,7 @@ describe('CodexSessionUsageService', () => {
     );
     await writeFile(
       newerPath,
-      `${JSON.stringify(sessionMetaEvent({ model_provider: 'openai-api' }))}\nnot json\n${JSON.stringify(tokenCountEvent({
+      `${JSON.stringify(sessionMetaEvent({ model_provider: 'openai' }))}\nnot json\n${JSON.stringify(tokenCountEvent({
         timestamp: '2026-05-04T16:00:00.000Z',
         info: usageInfo(250),
       }))}\n`,
@@ -134,7 +134,7 @@ describe('CodexSessionUsageService', () => {
 
     await expect(service.getLatestSnapshot()).resolves.toMatchObject({
       sessionId: '019df3cc-fc26-7a70-97da-0ee3fc011cce',
-      modelProvider: 'openai-api',
+      modelProvider: 'openai',
       updatedAt: '2026-05-04T16:00:00.000Z',
       usage: { total: { totalTokens: 250 } },
     });
