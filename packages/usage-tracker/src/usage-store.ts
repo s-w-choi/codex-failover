@@ -314,6 +314,10 @@ export class UsageStore {
     this.db.prepare('DELETE FROM usage_records WHERE provider_id = ?').run(providerId);
   }
 
+  deleteRecordsByRequestIdPrefix(prefix: string): void {
+    this.db.prepare('DELETE FROM usage_records WHERE request_id LIKE ?').run(`${prefix}%`);
+  }
+
   close(): void {
     this.db.close();
   }

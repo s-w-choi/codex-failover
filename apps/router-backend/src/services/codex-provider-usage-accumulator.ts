@@ -11,6 +11,7 @@ import type { ProviderRegistry } from './provider-registry.js';
 
 const DEFAULT_SAMPLE_INTERVAL_MS = 5 * 60 * 1000;
 const TRACKED_PROVIDER_TYPES = new Set<string>(['openai-api-key', 'azure-openai-api-key', 'openai-compatible-api-key']);
+const STATE_VERSION = 2;
 
 export interface ActiveProviderReader {
   getActiveProvider(): string;
@@ -31,6 +32,7 @@ export interface CodexProviderUsageSampleOptions {
 }
 
 interface AccumulatorState {
+  v: number;
   sessions: Record<string, SessionBaseline>;
 }
 
@@ -46,7 +48,7 @@ export class CodexProviderUsageAccumulator {
   private timerId: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private stateLoaded = false;
-  private state: AccumulatorState = { sessions: {} };
+  private state: AccumulatorState = { v: STATE_VERSION, sessions: {} };
 
   constructor(
     private readonly registry: ProviderRegistry,
@@ -159,18 +161,20 @@ export class CodexProviderUsageAccumulator {
     }
 
     const providers = this.registry.list().filter((provider) => TRACKED_PROVIDER_TYPES.has(provider.type));
+
     const exact = providers.find((provider) => codexModelProviderNameForProvider(provider) === modelProvider);
     if (exact) {
       return exact;
     }
 
-    const activeProvider = preferActiveProvider && activeProviderId ? this.registry.get(activeProviderId) : undefined;
-    if (activeProvider && TRACKED_PROVIDER_TYPES.has(activeProvider.type) && legacyCodexModelProviderMatches(activeProvider, modelProvider)) {
-      return activeProvider;
+    if (preferActiveProvider && activeProviderId) {
+      const activeProvider = this.registry.get(activeProviderId);
+      if (activeProvider && TRACKED_PROVIDER_TYPES.has(activeProvider.type)) {
+        return activeProvider;
+      }
     }
 
-    const legacyMatches = providers.filter((provider) => legacyCodexModelProviderMatches(provider, modelProvider));
-    return legacyMatches.length === 1 ? legacyMatches[0] : undefined;
+    return undefined;
   }
 
   private createUsageRecord(provider: Provider, sessionKey: string, updatedAt: string, usage: CodexTokenUsage): UsageRecord {
@@ -233,14 +237,33 @@ export class CodexProviderUsageAccumulator {
     }
 
     const content = await readFile(this.options.statePath, 'utf8').catch(() => undefined);
+
     if (!content) {
+      this.purgeSessionDerivedRecords();
+      this.state = { v: STATE_VERSION, sessions: {} };
       return;
     }
 
     try {
-      this.state = parseState(JSON.parse(content));
+      const parsed = JSON.parse(content);
+      if (!isRecord(parsed) || parsed.v !== STATE_VERSION) {
+        console.warn(`[usage-accumulator] resetting state (expected v=${STATE_VERSION}, got ${isRecord(parsed) ? parsed.v : 'none'})`);
+        this.purgeSessionDerivedRecords();
+        this.state = { v: STATE_VERSION, sessions: {} };
+        return;
+      }
+      this.state = parseState(parsed);
     } catch {
-      this.state = { sessions: {} };
+      this.purgeSessionDerivedRecords();
+      this.state = { v: STATE_VERSION, sessions: {} };
+    }
+  }
+
+  private purgeSessionDerivedRecords(): void {
+    try {
+      this.usageStore.deleteRecordsByRequestIdPrefix('codex-session:');
+    } catch (error) {
+      console.warn(`[usage-accumulator] failed to purge session-derived records: ${errorMessage(error)}`);
     }
   }
 
@@ -282,28 +305,14 @@ function pricingProviderKey(provider: Provider): string {
   return provider.id;
 }
 
-function legacyCodexModelProviderMatches(provider: Provider, modelProvider: string): boolean {
-  return legacyCodexModelProvider(provider) === modelProvider;
-}
-
-function legacyCodexModelProvider(provider: Provider): string {
-  if (provider.type === 'azure-openai-api-key') {
-    return 'azure';
-  }
-  if (provider.type === 'openai-api-key') {
-    return 'openai-api';
-  }
-  return 'custom';
-}
-
 function timestampMs(value: string, now: () => Date): number {
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : now().getTime();
 }
 
-function parseState(value: unknown): AccumulatorState {
-  if (!isRecord(value) || !isRecord(value.sessions)) {
-    return { sessions: {} };
+function parseState(value: Record<string, unknown>): AccumulatorState {
+  if (!isRecord(value.sessions)) {
+    return { v: STATE_VERSION, sessions: {} };
   }
 
   const sessions: Record<string, SessionBaseline> = {};
@@ -318,7 +327,7 @@ function parseState(value: unknown): AccumulatorState {
     sessions[key] = { providerId: session.providerId, updatedAt: session.updatedAt, total };
   }
 
-  return { sessions };
+  return { v: STATE_VERSION, sessions };
 }
 
 function parseTokenUsage(value: unknown): CodexTokenUsage | undefined {
