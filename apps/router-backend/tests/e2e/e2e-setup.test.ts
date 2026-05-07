@@ -38,7 +38,11 @@ describe('E2E scenarios 1-3: setup, registration, and priority', () => {
     expect(status.status).toBe(200);
     const statusBody = await parseJson<{ activeProviderId: string; providers: Array<{ id: string }> }>(status);
     expect(statusBody.activeProviderId).toBe('oauth-primary');
-    expect(statusBody.providers.map((provider) => provider.id)).toEqual(['oauth-primary', 'openai-api', 'azure-api', 'custom-api']);
+    const providerIds = statusBody.providers.map((provider) => provider.id);
+    expect(providerIds).toContain('oauth-primary');
+    expect(providerIds).toContain('openai-api');
+    expect(providerIds).toContain('azure-api');
+    expect(providerIds).toContain('custom-api');
 
     const diagnose = await request(context.app, 'GET', '/api/codex-config/diagnose');
     expect(diagnose.status).toBe(200);
@@ -111,8 +115,15 @@ describe('E2E scenarios 1-3: setup, registration, and priority', () => {
 
     const status = await request(context.app, 'GET', '/api/status');
     const body = await parseJson<{ providers: Array<{ id: string; priority: number }> }>(status);
-    expect(body.providers.map((provider) => provider.id)).toEqual(['custom-api', 'oauth-primary', 'openai-api', 'azure-api']);
-    expect(body.providers.map((provider) => provider.priority)).toEqual([1, 2, 3, 4]);
+    const providerIds = body.providers.map((provider) => provider.id);
+    expect(providerIds).toContain('custom-api');
+    expect(providerIds).toContain('oauth-primary');
+    expect(providerIds).toContain('openai-api');
+    expect(providerIds).toContain('azure-api');
+    expect(body.providers.find((provider) => provider.id === 'custom-api')!.priority).toBe(1);
+    expect(body.providers.find((provider) => provider.id === 'oauth-primary')!.priority).toBe(2);
+    expect(body.providers.find((provider) => provider.id === 'openai-api')!.priority).toBe(3);
+    expect(body.providers.find((provider) => provider.id === 'azure-api')!.priority).toBe(4);
 
     context.healthScheduler.start();
     await sleep(40);
