@@ -1,10 +1,14 @@
-import { BrowserWindow, Tray, app, nativeImage } from 'electron';
+import { BrowserWindow, Tray, app, ipcMain, nativeImage, screen } from 'electron';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const popupPath = join(__dirname, 'popup.html');
 const API_URL = 'http://127.0.0.1:8787/api';
+const POPUP_WIDTH = 340;
+const POPUP_INITIAL_HEIGHT = 520;
+const POPUP_MIN_HEIGHT = 240;
+const POPUP_EDGE_MARGIN = 8;
 const TRAY_ICON_SIZE = 18;
 const USE_TEMPLATE_ICONS = process.env.CODEX_FAILOVER_TRAY_TEMPLATE === '1';
 const TRAY_STATUS_POLL_MS = 5_000;
@@ -23,8 +27,8 @@ const iconCache = new Map<keyof typeof iconFiles, Electron.NativeImage>();
 function getPopup(): BrowserWindow {
   if (popup) return popup;
   popup = new BrowserWindow({
-    width: 340,
-    height: 520,
+    width: POPUP_WIDTH,
+    height: POPUP_INITIAL_HEIGHT,
     show: false,
     frame: false,
     resizable: false,
@@ -33,9 +37,13 @@ function getPopup(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: join(__dirname, 'preload.js'),
     },
   });
   popup.loadURL(`file://${popupPath}`);
+  popup.webContents.on('did-finish-load', () => {
+    schedulePopupResize();
+  });
   popup.on('closed', () => {
     popup = null;
   });
@@ -44,11 +52,67 @@ function getPopup(): BrowserWindow {
 
 function positionPopup() {
   const window = getPopup();
-  const trayBounds = tray?.getBounds() ?? { x: 0, y: 0, width: 0, height: 0 };
-  const { width } = window.getBounds();
-  const x = Math.round(trayBounds.x + trayBounds.width / 2 - width / 2);
-  const y = Math.round(trayBounds.y + trayBounds.height);
-  window.setPosition(x, y);
+  const { height } = window.getBounds();
+  window.setBounds(popupBoundsForHeight(height));
+}
+
+function resizePopupToContentHeight(requestedHeight: unknown) {
+  if (!popup || typeof requestedHeight !== 'number' || !Number.isFinite(requestedHeight)) {
+    return;
+  }
+
+  popup.setBounds(popupBoundsForHeight(requestedHeight));
+}
+
+function schedulePopupResize(): void {
+  setTimeout(() => { void resizePopupFromRenderer(); }, 50);
+  setTimeout(() => { void resizePopupFromRenderer(); }, 250);
+}
+
+async function resizePopupFromRenderer(): Promise<void> {
+  const window = popup;
+  if (!window || window.webContents.isDestroyed()) {
+    return;
+  }
+
+  const contentHeight = await window.webContents.executeJavaScript(`
+    (() => {
+      const root = document.querySelector('.scroll');
+      return Math.ceil(Math.max(
+        root?.scrollHeight || 0,
+        root?.getBoundingClientRect?.().height || 0,
+        document.body?.scrollHeight || 0,
+        document.documentElement?.scrollHeight || 0
+      ));
+    })()
+  `, true).catch(() => undefined);
+
+  resizePopupToContentHeight(contentHeight);
+}
+
+function popupBoundsForHeight(requestedHeight: number): Electron.Rectangle {
+  const trayBounds = tray?.getBounds() ?? { x: 0, y: 0, width: POPUP_WIDTH, height: 0 };
+  const display = screen.getDisplayMatching(trayBounds);
+  const workArea = display.workArea;
+  const belowY = trayBounds.y + trayBounds.height;
+  const availableBelow = Math.max(1, workArea.y + workArea.height - belowY - POPUP_EDGE_MARGIN);
+  const availableAbove = Math.max(1, trayBounds.y - workArea.y - POPUP_EDGE_MARGIN);
+  const placeBelow = requestedHeight <= availableBelow || availableBelow >= availableAbove;
+  const maxHeight = placeBelow ? availableBelow : availableAbove;
+  const height = Math.max(POPUP_MIN_HEIGHT, Math.ceil(Math.min(requestedHeight, maxHeight)));
+  const centeredX = Math.round(trayBounds.x + trayBounds.width / 2 - POPUP_WIDTH / 2);
+  const x = clamp(centeredX, workArea.x + POPUP_EDGE_MARGIN, workArea.x + workArea.width - POPUP_WIDTH - POPUP_EDGE_MARGIN);
+  const rawY = placeBelow ? belowY : trayBounds.y - height;
+  const y = clamp(Math.round(rawY), workArea.y + POPUP_EDGE_MARGIN, workArea.y + workArea.height - height - POPUP_EDGE_MARGIN);
+
+  return { x, y, width: POPUP_WIDTH, height };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
 }
 
 async function togglePopup() {
@@ -61,6 +125,7 @@ async function togglePopup() {
     window.show();
     window.focus();
     window.webContents.send('refresh');
+    schedulePopupResize();
   }
 }
 
@@ -249,6 +314,12 @@ app.whenReady().then(() => {
   setInterval(() => {
     void pollStatus();
   }, TRAY_STATUS_POLL_MS);
+});
+
+ipcMain.on('resize-popup', (event, height) => {
+  if (popup && event.sender === popup.webContents) {
+    resizePopupToContentHeight(height);
+  }
 });
 
 app.on('window-all-closed', () => {

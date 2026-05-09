@@ -12,12 +12,10 @@
       line-height: 1.4;
       color: #333;
       background: #f5f5f5;
-      height: 100vh;
-      overflow: hidden;
+      overflow-y: auto;
     }
     .scroll {
-      height: 100vh;
-      overflow-y: auto;
+      overflow: visible;
       padding: 12px;
     }
     .header {
@@ -311,6 +309,18 @@
       }
     }
 
+    function requestPopupResize() {
+      if (!window.electronAPI?.resizePopup) {
+        return;
+      }
+
+      requestAnimationFrame(() => {
+        const scrollRoot = document.querySelector('.scroll');
+        const height = Math.ceil(scrollRoot?.getBoundingClientRect().height || app.getBoundingClientRect().height);
+        window.electronAPI.resizePopup(height);
+      });
+    }
+
     function formatResetTime(resetStr) {
       if (!resetStr) return '';
       try {
@@ -446,6 +456,25 @@
       `;
     }
 
+    function renderLocalSessionUsage(usage) {
+      return `
+        <div class="usage-grid" style="margin-top:3px;">
+          <div class="usage-card">
+            <div class="usage-value" style="color:#22c55e;font-size:11px;">${formatTokenCount(usage.localSessionTokens || 0)}</div>
+            <div class="usage-label">Stored</div>
+          </div>
+          <div class="usage-card">
+            <div class="usage-value" style="color:#3b82f6;font-size:11px;">${formatTokenCount(usage.localSessionInputTokens || 0)}</div>
+            <div class="usage-label">Input</div>
+          </div>
+          <div class="usage-card">
+            <div class="usage-value" style="color:#888;font-size:11px;">${formatTokenCount(usage.localSessionOutputTokens || 0)}</div>
+            <div class="usage-label">Output</div>
+          </div>
+        </div>
+      `;
+    }
+
     function render(status, usageToday) {
       if (!status) {
         app.innerHTML = `
@@ -454,6 +483,7 @@
             <div style="font-size: 10px; margin-top: 4px;">Start with: codex-failover start</div>
           </div>
         `;
+        requestPopupResize();
         return;
       }
 
@@ -508,6 +538,15 @@
             ${usageToday.providers.filter(p => p.enabled).map(p => {
               const isOAuth = p.type === 'openai-oauth-pass-through';
               const isActiveApiProvider = !isOAuth && p.providerId === activeId;
+              const providerCodexSession = p.codexSession || (isActiveApiProvider && !codexSession?.modelProvider ? codexSession : null);
+              const providerSessionTotal = providerCodexSession?.usage?.total?.totalTokens || 0;
+              const hasActualProviderUsage = (p.requestCount || 0) > 0 || (p.totalTokens || 0) > 0;
+              const hasLocalSessionUsage = (p.localSessionTokens || 0) > 0;
+              const shouldShowCodexSessionUsage = isActiveApiProvider
+                && p.requestCount === 0
+                && providerCodexSession?.usage
+                && !providerCodexSession?.limits?.available
+                && providerSessionTotal >= (p.totalTokens || 0);
               const name = p.providerId.length > 20 ? p.providerId.slice(0, 18) + '…' : p.providerId;
               let details = '';
 
@@ -536,10 +575,14 @@
                     ${p.rateLimit.resetRequests ? `<div style="font-size:9px;color:#888;">Resets in ${formatResetTime(p.rateLimit.resetRequests)}</div>` : ''}
                   </div>
                 `;
-              } else if (p.requestCount > 0 || p.totalTokens > 0) {
+              } else if (shouldShowCodexSessionUsage) {
+                details = renderCodexSessionUsage(providerCodexSession);
+              } else if (hasActualProviderUsage) {
                 details = renderProviderUsage(p);
-              } else if (isActiveApiProvider && codexSession?.usage && !codexSession?.limits?.available) {
-                details = renderCodexSessionUsage(codexSession);
+              } else if (isActiveApiProvider && providerCodexSession?.usage && !providerCodexSession?.limits?.available) {
+                details = renderCodexSessionUsage(providerCodexSession);
+              } else if (hasLocalSessionUsage) {
+                details = renderLocalSessionUsage(p);
               } else {
                 details = renderProviderUsage(p);
               }
@@ -563,7 +606,7 @@
         const isActive = isEnabled && p.id === activeId;
         const badgeClass = isActive ? 'active' : (isEnabled ? 'fallback' : 'disabled');
         const authLabel = p.credentialMode === 'inbound-authorization' ? 'OAuth' : 'API Key';
-        const displayName = p.accountId && p.accountId !== 'default' ? `${p.id} (${p.accountId})` : p.id;
+        const displayName = p.alias || (p.accountId && p.accountId !== 'default' ? `${p.id} (${p.accountId})` : p.id);
         const deleteBtn = !p.enabled ? `<span style="cursor:pointer;padding:2px;display:inline-flex;align-items:center;" onclick="deleteProvider('${p.id}')" title="Delete provider"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>` : '';
         const canDisable = !p.enabled || enabledProviders.length > 1;
         const toggleClass = `toggle ${p.enabled ? 'on' : ''} ${canDisable ? '' : 'locked'}`.trim();
@@ -595,6 +638,10 @@
           <div class="section-title">Providers (${providers.length})</div>
           ${providersHtml || '<div style="color:#666;font-size:11px;">No providers configured.</div>'}
           <div class="add-provider-form" id="addForm" style="display:none">
+            <div class="form-field">
+              <label>Alias <span style="font-weight:400;color:#aaa;">(optional)</span></label>
+              <input class="form-input" id="aliasInput" placeholder="My Provider" />
+            </div>
             <div class="form-field">
               <label>Type</label>
               <select class="form-input" id="typeInput" onchange="onTypeChange()">
@@ -642,7 +689,10 @@
           }
           const jsonEl = document.getElementById('jsonInput');
           if (jsonEl) jsonEl.value = formState.json;
+          requestPopupResize();
         });
+      } else {
+        requestPopupResize();
       }
     }
 
@@ -685,10 +735,12 @@
     function showAddForm() {
       document.getElementById('addForm').style.display = 'block';
       document.getElementById('addBtnRow').style.display = 'none';
+      document.getElementById('aliasInput').value = '';
       document.getElementById('baseUrlInput').value = '';
       document.getElementById('deploymentNameInput').value = '';
       document.getElementById('apiKeyInput').value = '';
       onTypeChange();
+      requestPopupResize();
     }
 
     function hideAddForm() {
@@ -699,6 +751,7 @@
       const btnRow = document.getElementById('addBtnRow');
       if (form) form.style.display = 'none';
       if (btnRow) btnRow.style.display = 'flex';
+      requestPopupResize();
     }
 
     async function toggleProvider(id, enabled, enabledCountSnapshot) {
@@ -725,11 +778,13 @@
       const isAzure = type === 'azure-openai-api-key';
       document.getElementById('baseUrlField').style.display = isAzure ? 'block' : 'none';
       document.getElementById('deploymentNameField').style.display = isAzure ? 'block' : 'none';
+      requestPopupResize();
     }
 
     async function addProvider() {
       const type = document.getElementById('typeInput').value;
       const isAzure = type === 'azure-openai-api-key';
+      const alias = document.getElementById('aliasInput').value.trim() || undefined;
       const baseUrl = isAzure ? document.getElementById('baseUrlInput').value.trim() : 'https://api.openai.com/v1';
       const deploymentName = isAzure ? document.getElementById('deploymentNameInput').value.trim() : undefined;
       const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -751,6 +806,7 @@
       const provider = {
         id: isAzure ? `azure-${existing + 1}` : `openai-${existing + 1}`,
         type,
+        alias,
         baseUrl,
         deploymentName,
         apiKey,
