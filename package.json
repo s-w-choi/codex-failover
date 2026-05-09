@@ -1,10 +1,18 @@
 {
   "name": "codex-failover",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.0.1",
+  "private": false,
   "author": "s-w-choi <csw2757@naver.com>",
   "type": "module",
   "packageManager": "pnpm@9.15.4",
+  "bin": {
+    "codex-failover": "./apps/router-backend/dist/cli.js"
+  },
+  "files": [
+    "apps/router-backend/dist",
+    "apps/router-tray/dist",
+    "dist/"
+  ],
   "scripts": {
     "build": "pnpm -r --filter @codex-failover/shared --filter @codex-failover/provider-core --filter @codex-failover/credential-store --filter @codex-failover/usage-tracker --filter @codex-failover/test-harness --filter @codex-failover/router-backend --filter @codex-failover/router-tray build",
     "start": "pnpm --filter @codex-failover/router-backend start",
@@ -42,5 +50,15 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@codex-failover/credential-store": "^0.1.0",
+    "@codex-failover/provider-core": "^0.1.0",
+    "@codex-failover/shared": "^0.1.0",
+    "@codex-failover/usage-tracker": "^0.1.0",
+    "@hono/node-server": "^1.13.8",
+    "dotenv": "^16.4.7",
+    "electron": "^33.0.0",
+    "hono": "^4.6.17"
   }
 }

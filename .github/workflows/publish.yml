@@ -1,0 +1,105 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package artifacts
+        run: pnpm build
+
+      - name: Resolve publish decision
+        id: publish_decision
+        run: |
+          LOCAL_VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+
+          PUBLISHED_VERSION="$(npm view codex-failover version 2>/dev/null || echo '0.0.0' )"
+          PUBLISHED_VERSION="${PUBLISHED_VERSION//\"/}"
+          PUBLISHED_VERSION="$(echo "$PUBLISHED_VERSION" | tr -d '\n\r ' )"
+
+          if [ "$PUBLISHED_VERSION" = "null" ] || [ -z "$PUBLISHED_VERSION" ]; then
+            PUBLISHED_VERSION="0.0.0"
+          fi
+
+          echo "Local version: $LOCAL_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+
+          if npx --yes semver "$LOCAL_VERSION" -r ">${PUBLISHED_VERSION}" >/tmp/semver_check.txt 2>/tmp/semver_err.txt; then
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "reason=local version is greater than npm" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "reason=local version is not greater than npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "No npm auth token provided. Set environment secret NPM_TOKEN."
+            exit 1
+          fi
+
+          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+          npm whoami --registry https://registry.npmjs.org
+          npm publish --access public
+
+      - name: Ensure git config
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create version tag
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        run: |
+          TAG_NAME="v${{ steps.publish_decision.outputs.version }}"
+          if ! git rev-parse -q --verify "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
+
+      - name: Create GitHub Release
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.publish_decision.outputs.version }}
+          name: codex-failover v${{ steps.publish_decision.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip publish
+        if: steps.publish_decision.outputs.should_publish != 'true'
+        run: |
+          echo "Skip publish: ${{ steps.publish_decision.outputs.reason }}"

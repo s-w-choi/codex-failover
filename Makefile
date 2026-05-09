@@ -64,7 +64,7 @@ build:
 
 link-cli:
 	@echo "$(CYAN)Linking CLI command...$(RESET)"
-	@cd apps/router-backend && npm link 2>/dev/null || true
+	@npm link 2>/dev/null || true
 	@which codex-failover > /dev/null 2>&1 && echo "$(GREEN)  codex-failover CLI available globally$(RESET)" || \
 		echo "$(YELLOW)  Note: codex-failover CLI linked but may need PATH adjustment$(RESET)"
 

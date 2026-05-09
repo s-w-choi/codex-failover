@@ -93,7 +93,7 @@ function main(): void {
   ensurePnpmAvailable();
   runCriticalStep('Installing dependencies', 'pnpm install --frozen-lockfile 2>/dev/null || pnpm install');
   runCriticalStep('Building packages', 'pnpm build');
-  runNonCriticalStep('Linking CLI', 'npm link 2>/dev/null || true', `${process.cwd()}/apps/router-backend`);
+  runNonCriticalStep('Linking CLI', 'npm link 2>/dev/null || true');
   runNonCriticalStep('Configuring Codex', 'tsx scripts/install-codex-config.ts');
   printSuccessBanner();
 }

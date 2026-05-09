@@ -35,50 +35,28 @@ This repository is tray + backend only:
 - **Node.js**: v20 or later.
 - **pnpm**: v9 (auto-installed by `make install` if missing).
 
-## Quick start (recommended)
+## Install
 
-### 1) Clone and install
-
-```bash
-git clone https://github.com/s-w-choi/codex-failover.git
-cd codex-router
-make install
-```
-
-`make install` performs:
-
-- dependency install (`pnpm`)
-- full build
-- CLI link (`codex-failover`)
-- Codex config patch (`codex-failover install`)
-
-### AI setup prompt (after `make install`)
-
-Paste this prompt into Codex (or another coding agent) right after `make install`:
-
-```text
-You are in the codex-failover repository.
-`make install` already finished.
-
-Goal:
-Finish codex-failover runtime setup and make it immediately usable for Codex CLI.
-
-Do this now:
-1. Start the service stack (backend + tray) with the repo's standard command.
-2. Verify codex-failover is reachable and healthy.
-3. Confirm Codex is configured to use the local router (`http://127.0.0.1:8787/v1`).
-4. Run a minimal smoke test command and show the exact command to run next.
-5. If anything fails, fix it and retry until it works.
-
-Output format:
-- What you ran
-- Current status
-- Next command for me to run
-```
-
-### 2) Start backend + tray
+### From npm (preferred for release users)
 
 ```bash
+npm install -g codex-failover
+```
+
+Then run:
+
+```bash
+codex-failover --help
+codex-failover install
+```
+
+This installs the published package to your PATH and sets up the Codex config.
+
+## Setup and run
+
+```bash
+npm install -g codex-failover
+codex-failover install
 codex-failover start
 ```
 
@@ -88,31 +66,7 @@ Default API endpoint used by Codex:
 
 Root (`http://127.0.0.1:8787`) is API status JSON (no web dashboard page).
 
-### 3) Verify status
-
-```bash
-codex-failover status
-```
-
-### 4) Use Codex as usual
-
-```bash
-codex "hello"
-```
-
 ## Core commands
-
-### Make targets
-
-```bash
-make help
-make install
-make start
-make stop
-make dev
-make test
-make verify
-```
 
 ### CLI commands
 
@@ -129,7 +83,7 @@ codex-failover restore
 
 ## Codex configuration flow
 
-If you did not run `make install`, run this manually:
+If you have not configured Codex routing yet, run this manually:
 
 ```bash
 codex-failover install
@@ -141,6 +95,25 @@ This updates your `~/.codex/config.toml` to use the local router. To roll back:
 codex-failover restore
 ```
 
+## Development
+
+If you are developing or testing from source, use the repo workflow:
+
+```bash
+git clone https://github.com/s-w-choi/codex-failover.git
+cd codex-router
+make install
+```
+
+Then run local build/verification:
+
+```bash
+pnpm install
+pnpm build
+make dev
+make test
+make verify
+```
 ## Environment variables
 
 | Variable                        | Default              | Description                   |
@@ -149,14 +122,6 @@ codex-failover restore
 | `HOST`                          | `127.0.0.1`          | Bind address                  |
 | `CODEX_FAILOVER_PROVIDERS_FILE` | unset                | Optional providers JSON path  |
 | `CODEX_FAILOVER_DATA_DIR`       | `~/.codex-failover/` | Optional local data directory |
-
-## Development
-
-```bash
-pnpm install
-pnpm build
-pnpm dev
-```
 
 ## Testing and quality gates
 
