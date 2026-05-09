@@ -3,10 +3,10 @@
 Local failover router for Codex/OpenAI-compatible requests.
 
 <p align="center">
-  <img src="./docs/active.png" width="120" />
-  <img src="./docs/fallback.png" width="120" />
-  <img src="./docs/error.png" width="120" />
-  <img src="./docs/unknown.png" width="120" />
+  <img src="https://raw.githubusercontent.com/s-w-choi/codex-failover/main/docs/active.png" width="120" />
+  <img src="https://raw.githubusercontent.com/s-w-choi/codex-failover/main/docs/fallback.png" width="120" />
+  <img src="https://raw.githubusercontent.com/s-w-choi/codex-failover/main/docs/error.png" width="120" />
+  <img src="https://raw.githubusercontent.com/s-w-choi/codex-failover/main/docs/unknown.png" width="120" />
 </p>
 
 `codex-failover` runs on your machine and routes requests across multiple providers. If the current provider rate-limits, fails, or hits budget limits, the router automatically switches to the next healthy provider.
