@@ -29,17 +29,19 @@ jobs:
         with:
           version: 9
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build package artifacts
-        run: pnpm build
-
       - name: Resolve publish decision
         id: publish_decision
         run: |
           LOCAL_VERSION="$(node -p "require('./package.json').version")"
           echo "version=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+
+          if npm view "codex-failover@${LOCAL_VERSION}" version >/dev/null 2>&1; then
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "reason=local version is already published" >> "$GITHUB_OUTPUT"
+            echo "Local version: $LOCAL_VERSION"
+            echo "Reason: local version exists in npm registry"
+            exit 0
+          fi
 
           PUBLISHED_VERSION="$(npm view codex-failover version 2>/dev/null || echo '0.0.0' )"
           PUBLISHED_VERSION="${PUBLISHED_VERSION//\"/}"
@@ -59,6 +61,14 @@ jobs:
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
             echo "reason=local version is not greater than npm" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Install dependencies
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package artifacts
+        if: steps.publish_decision.outputs.should_publish == 'true'
+        run: pnpm build
 
       - name: Publish to npm
         if: steps.publish_decision.outputs.should_publish == 'true'
