@@ -95,14 +95,34 @@ describe('CodexProviderUsageAccumulator', () => {
   it('attributes API deltas when Codex config points at the active API provider', async () => {
     activeProvider.providerId = 'openai';
     modelProvider.providerName = 'openai';
-    snapshot = snapshotWithUsage({ inputTokens: 100, outputTokens: 40, totalTokens: 140 }, { oauthLimits: true });
+    snapshot = snapshotWithUsage({ inputTokens: 100, outputTokens: 40, totalTokens: 140 });
     const accumulator = createAccumulator([provider({ id: 'openai', type: 'openai-api-key' })]);
 
     await accumulator.sample();
-    snapshot = snapshotWithUsage({ inputTokens: 125, outputTokens: 55, totalTokens: 180 }, { oauthLimits: true });
+    snapshot = snapshotWithUsage({ inputTokens: 125, outputTokens: 55, totalTokens: 180 });
     await accumulator.sample();
 
     expect(dailyUsage('openai')).toMatchObject({ totalTokens: 40, requestCount: 0 });
+  });
+
+  it('does not attribute OAuth limit snapshots even when they have an API model provider name', async () => {
+    const openai = provider({ id: 'openai', type: 'openai-api-key' });
+    activeProvider.providerId = 'openai';
+    modelProvider.providerName = 'openai';
+    snapshot = snapshotWithUsage(
+      { inputTokens: 100, outputTokens: 40, totalTokens: 140 },
+      { oauthLimits: true, modelProvider: codexModelProviderNameForProvider(openai) },
+    );
+    const accumulator = createAccumulator([openai]);
+
+    await accumulator.sample();
+    snapshot = snapshotWithUsage(
+      { inputTokens: 125, outputTokens: 55, totalTokens: 180 },
+      { oauthLimits: true, modelProvider: codexModelProviderNameForProvider(openai) },
+    );
+    await accumulator.sample();
+
+    expect(dailyUsage('openai')).toBeUndefined();
   });
 
   it('uses id-specific Codex model provider names to separate providers of the same type', async () => {
