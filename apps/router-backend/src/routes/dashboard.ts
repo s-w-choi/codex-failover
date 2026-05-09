@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 
+import type { Provider } from '@codex-failover/shared';
 import type { DailyUsage, PricingScraper, RateLimitTracker, UsageStore } from '@codex-failover/usage-tracker';
 
+import { codexModelProviderNameForProvider } from '../services/config-switcher.js';
 import type { ProviderRegistry } from '../services/provider-registry.js';
 import type { CodexSessionUsageReader, CodexSessionUsageSnapshot } from '../services/codex-session-usage.js';
 
@@ -9,11 +11,16 @@ export interface UsageSampler {
   sample(options?: { force?: boolean }): Promise<void>;
 }
 
+export interface ActiveProviderReader {
+  getActiveProvider(): string;
+}
+
 export interface DashboardRouteOptions {
   usageStore: UsageStore;
   rateLimitTracker: RateLimitTracker;
   pricingScraper: PricingScraper;
   providerRegistry: ProviderRegistry;
+  activeProviderReader?: ActiveProviderReader;
   codexSessionUsageService?: CodexSessionUsageReader;
   codexProviderUsageAccumulator?: UsageSampler;
 }
@@ -35,7 +42,10 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
     const rateLimits = options.rateLimitTracker.getAllStates();
     const providers = options.providerRegistry.list();
     const codexSnapshots = await readCodexSnapshots(options.codexSessionUsageService, force);
-    const codexSession = codexSnapshots[0];
+    const codexSessionByProvider = mapCodexSessionsByProvider(providers, codexSnapshots);
+    const activeProviderId = options.activeProviderReader?.getActiveProvider();
+    const codexSession = (activeProviderId ? codexSessionByProvider.get(activeProviderId) : undefined)
+      ?? selectCodexUsageSnapshot(codexSnapshots);
     const codexLimitSession = codexSnapshots.find((snapshot) => snapshot.limits.available);
 
     const byProvider: Record<string, {
@@ -47,6 +57,10 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
       totalOutputTokens: number;
       requestCount: number;
       estimatedCostUsd: number;
+      localSessionTokens: number;
+      localSessionInputTokens: number;
+      localSessionOutputTokens: number;
+      localSessionEstimatedCostUsd: number;
       rateLimit?: {
         remainingRequests: number;
         limitRequests: number;
@@ -55,9 +69,11 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
         resetRequests: string;
         resetTokens: string;
       };
+      codexSession?: CodexSessionUsageSnapshot;
     }> = {};
 
     for (const provider of providers) {
+      const providerCodexSession = codexSessionByProvider.get(provider.id);
       byProvider[provider.id] = {
         providerId: provider.id,
         type: provider.type,
@@ -67,27 +83,43 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
         totalOutputTokens: 0,
         requestCount: 0,
         estimatedCostUsd: 0,
+        localSessionTokens: 0,
+        localSessionInputTokens: 0,
+        localSessionOutputTokens: 0,
+        localSessionEstimatedCostUsd: 0,
+        ...(providerCodexSession ? { codexSession: providerCodexSession } : {}),
       };
     }
 
     for (const entry of daily) {
       const existing = byProvider[entry.providerId];
       if (existing) {
-        existing.totalTokens += entry.totalTokens;
-        existing.totalInputTokens += entry.totalInputTokens;
-        existing.totalOutputTokens += entry.totalOutputTokens;
-        existing.requestCount += entry.requestCount;
-        existing.estimatedCostUsd += entry.estimatedCostUsd;
+        if (entry.requestCount === 0) {
+          existing.localSessionTokens += entry.totalTokens;
+          existing.localSessionInputTokens += entry.totalInputTokens;
+          existing.localSessionOutputTokens += entry.totalOutputTokens;
+          existing.localSessionEstimatedCostUsd += entry.estimatedCostUsd;
+        } else {
+          existing.totalTokens += entry.totalTokens;
+          existing.totalInputTokens += entry.totalInputTokens;
+          existing.totalOutputTokens += entry.totalOutputTokens;
+          existing.requestCount += entry.requestCount;
+          existing.estimatedCostUsd += entry.estimatedCostUsd;
+        }
       } else {
         byProvider[entry.providerId] = {
           providerId: entry.providerId,
           type: 'unknown',
           enabled: true,
-          totalTokens: entry.totalTokens,
-          totalInputTokens: entry.totalInputTokens,
-          totalOutputTokens: entry.totalOutputTokens,
-          requestCount: entry.requestCount,
-          estimatedCostUsd: entry.estimatedCostUsd,
+          totalTokens: entry.requestCount === 0 ? 0 : entry.totalTokens,
+          totalInputTokens: entry.requestCount === 0 ? 0 : entry.totalInputTokens,
+          totalOutputTokens: entry.requestCount === 0 ? 0 : entry.totalOutputTokens,
+          requestCount: entry.requestCount === 0 ? 0 : entry.requestCount,
+          estimatedCostUsd: entry.requestCount === 0 ? 0 : entry.estimatedCostUsd,
+          localSessionTokens: entry.requestCount === 0 ? entry.totalTokens : 0,
+          localSessionInputTokens: entry.requestCount === 0 ? entry.totalInputTokens : 0,
+          localSessionOutputTokens: entry.requestCount === 0 ? entry.totalOutputTokens : 0,
+          localSessionEstimatedCostUsd: entry.requestCount === 0 ? entry.estimatedCostUsd : 0,
         };
       }
     }
@@ -159,6 +191,57 @@ async function readCodexSnapshots(service: CodexSessionUsageReader | undefined, 
   }
   const snapshot = force && service.refresh ? await service.refresh() : await service.getLatestSnapshot();
   return snapshot ? [snapshot] : [];
+}
+
+function selectCodexUsageSnapshot(snapshots: CodexSessionUsageSnapshot[]): CodexSessionUsageSnapshot | undefined {
+  return snapshots.find((snapshot) => snapshot.usage && !snapshot.limits.available)
+    ?? snapshots.find((snapshot) => snapshot.usage)
+    ?? snapshots[0];
+}
+
+function mapCodexSessionsByProvider(providers: Provider[], snapshots: CodexSessionUsageSnapshot[]): Map<string, CodexSessionUsageSnapshot> {
+  const modelProviderToProvider = new Map<string, Provider>();
+  for (const provider of providers) {
+    if (isApiKeyProvider(provider)) {
+      modelProviderToProvider.set(codexModelProviderNameForProvider(provider), provider);
+    }
+  }
+
+  const result = new Map<string, CodexSessionUsageSnapshot>();
+  for (const snapshot of snapshots) {
+    if (!snapshot.usage || !snapshot.modelProvider || snapshot.limits.available) {
+      continue;
+    }
+
+    const provider = modelProviderToProvider.get(snapshot.modelProvider)
+      ?? resolveLegacyModelProvider(providers, snapshot.modelProvider);
+    if (provider && !result.has(provider.id)) {
+      result.set(provider.id, snapshot);
+    }
+  }
+
+  return result;
+}
+
+function resolveLegacyModelProvider(providers: Provider[], modelProvider: string): Provider | undefined {
+  const candidates = providers.filter((provider) => isApiKeyProvider(provider) && legacyModelProviderName(provider) === modelProvider);
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function legacyModelProviderName(provider: Provider): string {
+  if (provider.type === 'azure-openai-api-key') {
+    return 'azure';
+  }
+  if (provider.type === 'openai-api-key') {
+    return 'openai';
+  }
+  return provider.id;
+}
+
+function isApiKeyProvider(provider: Provider): boolean {
+  return provider.type === 'openai-api-key'
+    || provider.type === 'azure-openai-api-key'
+    || provider.type === 'openai-compatible-api-key';
 }
 
 function getDefaultStartDate(): string {

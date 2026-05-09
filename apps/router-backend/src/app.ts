@@ -130,6 +130,7 @@ export function createApp(options: CreateAppOptions): AppRuntime {
         rateLimitTracker: options.dashboard.rateLimitTracker,
         pricingScraper: options.dashboard.pricingScraper,
         providerRegistry: registry,
+        activeProviderReader: routingService,
         codexSessionUsageService: options.dashboard.codexSessionUsageService,
         codexProviderUsageAccumulator,
       }),

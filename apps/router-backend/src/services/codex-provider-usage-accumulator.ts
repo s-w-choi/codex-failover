@@ -121,6 +121,11 @@ export class CodexProviderUsageAccumulator {
     }
 
     const sessionKey = snapshot.sessionId ?? 'latest';
+    if (snapshot.limits.available) {
+      await this.saveBaseline(sessionKey, 'codex-oauth', total, snapshot.updatedAt);
+      return;
+    }
+
     const sessionModelProvider = snapshot.modelProvider ?? configuredModelProvider;
     const provider = this.resolveProviderForModelProvider(sessionModelProvider, activeProviderId, snapshot.modelProvider === undefined);
     const previous = this.state.sessions[sessionKey];

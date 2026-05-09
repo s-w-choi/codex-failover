@@ -358,13 +358,32 @@ async function buildStatusOutput(host: string, port: number): Promise<string> {
         const tokPct = rl.limitTokens > 0 ? Math.round((rl.remainingTokens / rl.limitTokens) * 100) : 100;
         lines.push(`  Requests  ${bar(reqPct)} ${rl.remainingRequests}/${rl.limitRequests}`);
         lines.push(`  Tokens    ${bar(tokPct)} ${formatTokenCount(rl.remainingTokens)}/${formatTokenCount(rl.limitTokens)}`);
+      } else if (p.type !== 'openai-oauth-pass-through' && isActive) {
+        const providerCodexSession = usageP.codexSession ?? (usage?.codexSession?.modelProvider ? undefined : usage?.codexSession);
+        const providerSessionTotal = providerCodexSession?.usage?.total.totalTokens ?? 0;
+        const localSessionTotal = usageP.localSessionTokens ?? 0;
+        if (
+          usageP.requestCount === 0
+          && providerCodexSession?.usage
+          && !providerCodexSession.limits.available
+          && providerSessionTotal >= usageP.totalTokens
+        ) {
+          const total = providerCodexSession.usage.total;
+          lines.push(`  Codex session · ${formatTokenCount(total.totalTokens)} tokens`);
+          lines.push(`  Input ${formatTokenCount(total.inputTokens)} · Output ${formatTokenCount(total.outputTokens)}`);
+        } else if (usageP.requestCount > 0 || usageP.totalTokens > 0) {
+          const cost = usageP.estimatedCostUsd > 0 ? `$${formatFixed(usageP.estimatedCostUsd, 2)}` : '';
+          lines.push(`  ${usageP.requestCount} reqs · ${formatTokenCount(usageP.totalTokens)} tokens${cost ? ' · ' + cost : ''}`);
+        } else if (localSessionTotal > 0) {
+          lines.push(`  Stored session · ${formatTokenCount(localSessionTotal)} tokens`);
+        } else {
+          lines.push(`  0 reqs · ${formatTokenCount(0)} tokens`);
+        }
       } else if (usageP.requestCount > 0 || usageP.totalTokens > 0) {
         const cost = usageP.estimatedCostUsd > 0 ? `$${formatFixed(usageP.estimatedCostUsd, 2)}` : '';
         lines.push(`  ${usageP.requestCount} reqs · ${formatTokenCount(usageP.totalTokens)} tokens${cost ? ' · ' + cost : ''}`);
-      } else if (p.type !== 'openai-oauth-pass-through' && isActive && usage?.codexSession?.usage && !usage.codexSession.limits.available) {
-        const total = usage.codexSession.usage.total;
-        lines.push(`  Codex session · ${formatTokenCount(total.totalTokens)} tokens`);
-        lines.push(`  Input ${formatTokenCount(total.inputTokens)} · Output ${formatTokenCount(total.outputTokens)}`);
+      } else if ((usageP.localSessionTokens ?? 0) > 0) {
+        lines.push(`  Stored session · ${formatTokenCount(usageP.localSessionTokens ?? 0)} tokens`);
       } else if (p.type === 'openai-oauth-pass-through') {
         lines.push('  Limits not available');
       } else {
@@ -475,6 +494,8 @@ interface UsageProvider {
   totalTokens: number;
   requestCount: number;
   estimatedCostUsd: number;
+  localSessionTokens?: number;
+  codexSession?: CodexSessionUsage;
   rateLimit?: {
     remainingRequests: number;
     limitRequests: number;
@@ -484,6 +505,7 @@ interface UsageProvider {
 }
 
 interface CodexSessionUsage {
+  modelProvider?: string;
   usage?: {
     total: CodexTokenUsage;
   };
