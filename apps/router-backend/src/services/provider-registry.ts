@@ -158,6 +158,7 @@ export class ProviderRegistry {
       authHeaderStyle: input.authHeaderStyle,
       limits: input.limits,
       accountId: input.accountId ?? 'default',
+      alias: input.alias,
     };
   }
 

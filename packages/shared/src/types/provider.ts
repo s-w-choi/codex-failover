@@ -31,6 +31,7 @@ export interface Provider {
   authHeaderStyle?: 'bearer' | 'api-key' | 'x-api-key';
   limits?: ProviderLimits;
   accountId?: string;
+  alias?: string;
 }
 
 export interface ProviderState extends Provider {
