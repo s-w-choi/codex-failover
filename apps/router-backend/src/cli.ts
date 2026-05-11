@@ -9,11 +9,11 @@ import { DEFAULTS } from '@codex-failover/shared';
 import dotenv from 'dotenv';
 
 import { CodexConfigService } from './services/codex-config.js';
-import { ensureUserDataDir, getUserDataDir } from './utils/user-data.js';
+import { ensureUserDataDir, getUserDataDir, removeUserDataDir } from './utils/user-data.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-type Subcommand = 'start' | 'stop' | 'restart' | 'install' | 'restore' | 'status' | 'logs';
+type Subcommand = 'start' | 'stop' | 'restart' | 'install' | 'restore' | 'uninstall' | 'status' | 'logs';
 
 const command = parseCommand(process.argv[2]);
 
@@ -36,6 +36,9 @@ try {
     case 'restore':
       await restoreCommand();
       break;
+    case 'uninstall':
+      await uninstallCommand();
+      break;
     case 'status':
       await statusCommand();
       break;
@@ -49,7 +52,7 @@ try {
 }
 
 function parseCommand(value: string | undefined): Subcommand {
-  const valid: Subcommand[] = ['start', 'stop', 'restart', 'install', 'restore', 'status', 'logs'];
+  const valid: Subcommand[] = ['start', 'stop', 'restart', 'install', 'restore', 'uninstall', 'status', 'logs'];
   if (value && valid.includes(value as Subcommand)) {
     return value as Subcommand;
   }
@@ -146,8 +149,7 @@ async function restartCommand(): Promise<void> {
 }
 
 async function startBackgroundServer(): Promise<number | null> {
-  const projectRoot = resolve(__dirname, '../../..');
-  const serverEntry = join(projectRoot, 'apps/router-backend/dist/index.js');
+  const serverEntry = join(__dirname, 'index.js');
   const pidFile = join(getUserDataDir(), 'server.pid');
   const logFile = join(getUserDataDir(), 'server.log');
 
@@ -197,7 +199,7 @@ function resolveElectronBinary(projectRoot: string): string | null {
 
 async function launchTray(): Promise<void> {
   const projectRoot = resolve(__dirname, '../../..');
-  const trayMain = join(projectRoot, 'apps/router-tray/dist/main.js');
+  const trayMain = join(__dirname, 'tray', 'main.js');
   const electronBin = resolveElectronBinary(projectRoot);
   const pidFile = join(getUserDataDir(), 'tray.pid');
   const trayLogFile = join(getUserDataDir(), 'tray.log');
@@ -258,6 +260,26 @@ async function restoreCommand(): Promise<void> {
   dotenv.config();
   const result = await new CodexConfigService().restore();
   printJson(result);
+}
+
+async function uninstallCommand(): Promise<void> {
+  dotenv.config();
+
+  const host = getHost();
+  const port = getPort();
+  if (await isServerRunning(host, port)) {
+    await stopCommand();
+  }
+
+  const service = new CodexConfigService();
+  const result = await service.restore();
+  console.log('Config restored:', JSON.stringify(result, null, 2));
+
+  const dataDir = getUserDataDir();
+  await removeUserDataDir();
+  console.log(`Removed data directory: ${dataDir}`);
+
+  console.log('codex-failover uninstalled. You can now run: npm uninstall -g @sungwon_choi/codex-failover');
 }
 
 async function logsCommand(): Promise<void> {
@@ -476,7 +498,7 @@ function printJson(value: unknown): void {
 }
 
 function printUsage(): void {
-  console.log('Usage: codex-failover <start|stop|restart|install|restore|status|logs>');
+  console.log('Usage: codex-failover <start|stop|restart|install|restore|uninstall|status|logs>');
 }
 
 interface ProviderState {
