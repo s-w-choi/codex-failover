@@ -1,6 +1,6 @@
 {
   "name": "@sungwon_choi/codex-failover",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": false,
   "author": "s-w-choi <csw2757@naver.com>",
   "type": "module",

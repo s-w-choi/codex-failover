@@ -24,13 +24,17 @@ All notable changes to this project are documented here.
 ## [0.0.3] - 2026-05-11
 
 ### Added
-- None yet.
+- Added changelog workflow skill documentation to standardize release-note authoring and compliance.
+- Added dedicated tray popup script/style modules (`popup-logic.js`, `popup-render.js`, `popup.css`) to split responsibilities and simplify future UI changes.
 
 ### Changed
-- None yet.
+- Updated `/api/status`-driven auth/runtime behavior for provider provisioning and status reporting consistency.
+- Refined tray runtime + popup integration for status/login flow and popup behavior.
+- Expanded backend integration/e2e/unit test coverage around Codex auth provisioning and dashboard/status behavior.
 
 ### Fixed
-- None yet.
+- Fixed README/process guidance by aligning runtime validation and verification expectations with new status/auth behavior.
+- Fixed regression coverage gaps for OAuth login/config scenarios and dashboard usage/status checks.
 
 ## [0.0.2] - 2026-05-11
 
