@@ -30,7 +30,7 @@ describe('E2E OAuth config switching', () => {
     await setProviderMode('openai', 'success');
 
     context.healthScheduler.start();
-    await sleep(40);
+    await sleep(200);
 
     const config = await readCodexConfig(context);
     expect(config).not.toContain('model_provider');

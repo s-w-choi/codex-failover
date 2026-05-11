@@ -1,3 +1,9 @@
+---
+name: backend-auth-provision-smoke
+description: "Smoke-test OAuth provider auto-provision during status polling/auth detection"
+argument-hint: "run | verify | report"
+---
+
 # SKILL: backend-auth-provision-smoke
 
 ## Purpose

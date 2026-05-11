@@ -146,6 +146,11 @@ make verify
 - Do not expose this service directly to the internet.
 - Keep `.env`, local runtime state, and private planning docs out of git.
 
+## Changelog
+
+Version history and release notes are maintained in [docs/CHANGELOG.md](docs/CHANGELOG.md).  
+Before each release, add items to `Unreleased` first, then move them to the new `x.y.z` release section.
+
 ## License
 
 MIT. See `LICENSE`.

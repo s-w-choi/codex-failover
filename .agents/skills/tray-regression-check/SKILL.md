@@ -1,3 +1,9 @@
+---
+name: tray-regression-check
+description: "Regression checks for tray polling, popup refresh, and status icon/tooltip behavior"
+argument-hint: "run | steps | report"
+---
+
 # SKILL: tray-regression-check
 
 ## Purpose

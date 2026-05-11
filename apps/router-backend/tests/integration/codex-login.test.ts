@@ -6,7 +6,7 @@ import { CodexLoginService } from '../../src/services/codex-login-service.js';
 
 function createMockExecAsync(responses: Array<{ stdout?: string; stderr?: string; error?: Error }>) {
   let callIndex = 0;
-  return vi.fn(async (command: string, options?: { timeout?: number }) => {
+  return vi.fn(async (_command: string, _options?: { timeout?: number }) => { // eslint-disable-line @typescript-eslint/no-unused-vars
     const response = responses[callIndex++];
     if (callIndex > responses.length) {
       throw new Error('Unexpected extra exec call');

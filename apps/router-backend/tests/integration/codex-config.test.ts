@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,7 +40,7 @@ describe('codex config installer', () => {
   });
 
   it('creates data directory during install without env file or shell profile changes', async () => {
-    const { service, homeDir } = await createService();
+    const { service } = await createService();
 
     const result = await service.install();
 

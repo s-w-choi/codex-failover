@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/popup.html dist/ && cp assets/*.png dist/",
+    "build": "tsc -p tsconfig.json && cp src/popup.html src/popup.css src/popup-logic.js src/popup-render.js dist/ && cp assets/*.png dist/",
     "dev": "tsc -p tsconfig.json --watch & cp src/popup.html dist/ && cp assets/*.png dist/",
     "start": "electron dist/main.js",
     "lint": "eslint src --ext .ts",

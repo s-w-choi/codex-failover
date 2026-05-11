@@ -20,7 +20,7 @@ help:
 	@echo ""
 
 # Full installation — clone and run this
-install: check-node check-pnpm install-deps build link-cli configure-codex
+install: check-node check-pnpm install-deps build link-cli configure-codex start
 	@echo ""
 	@echo "$(GREEN)✅ Installation complete!$(RESET)"
 	@echo ""

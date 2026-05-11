@@ -1,3 +1,9 @@
+---
+name: commit-rules
+description: "Keep commit formatting and message structure aligned to repo-specific commit policies"
+argument-hint: "status | enforce | template <name>"
+---
+
 # SKILL: commit-rules
 
 ## Purpose

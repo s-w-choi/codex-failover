@@ -98,13 +98,15 @@ function getDirectoryChain(startDir: string): string[] {
   const directories: string[] = [];
   let currentDir = startDir;
 
-  while (true) {
+  let shouldContinue = true;
+  while (shouldContinue) {
     directories.push(currentDir);
     const parentDir = dirname(currentDir);
     if (parentDir === currentDir || currentDir === parse(currentDir).root) {
-      break;
+      shouldContinue = false;
+    } else {
+      currentDir = parentDir;
     }
-    currentDir = parentDir;
   }
 
   return directories;

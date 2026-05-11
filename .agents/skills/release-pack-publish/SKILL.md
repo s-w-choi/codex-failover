@@ -1,3 +1,9 @@
+---
+name: release-pack-publish
+description: "Run pre-release publish checks before publish:dry and packaging validation"
+argument-hint: "ready | run | check"
+---
+
 # SKILL: release-pack-publish
 
 ## Purpose

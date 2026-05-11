@@ -1,3 +1,9 @@
+---
+name: status-runtime-audit
+description: "Audit /api/status and tray status propagation behavior end-to-end"
+argument-hint: "run | capture <scenario> | report"
+---
+
 # SKILL: status-runtime-audit
 
 ## Purpose

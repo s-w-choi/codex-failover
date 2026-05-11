@@ -50,6 +50,7 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
 
     const byProvider: Record<string, {
       providerId: string;
+      alias: string | null;
       type: string;
       enabled: boolean;
       totalTokens: number;
@@ -76,6 +77,7 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
       const providerCodexSession = codexSessionByProvider.get(provider.id);
       byProvider[provider.id] = {
         providerId: provider.id,
+        alias: provider.alias || null,
         type: provider.type,
         enabled: provider.enabled,
         totalTokens: 0,
@@ -109,6 +111,7 @@ export function createDashboardRoutes(options: DashboardRouteOptions): Hono {
       } else {
         byProvider[entry.providerId] = {
           providerId: entry.providerId,
+          alias: null,
           type: 'unknown',
           enabled: true,
           totalTokens: entry.requestCount === 0 ? 0 : entry.totalTokens,

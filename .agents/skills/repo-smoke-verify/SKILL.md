@@ -1,3 +1,9 @@
+---
+name: repo-smoke-verify
+description: "Run repo-level smoke verification order: lint, typecheck, and tests"
+argument-hint: "status | run | report"
+---
+
 # SKILL: repo-smoke-verify
 
 ## Purpose

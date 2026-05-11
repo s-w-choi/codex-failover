@@ -1,3 +1,9 @@
+---
+name: docs-sync
+description: "Keep docs in sync with runtime/auth and tray behavior changes"
+argument-hint: "run | status | update <section> | verify"
+---
+
 # SKILL: docs-sync
 
 ## Purpose
