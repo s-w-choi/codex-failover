@@ -40,7 +40,7 @@ This repository is tray + backend only:
 ### From npm (preferred for release users)
 
 ```bash
-npm install -g codex-failover
+npm install -g @sungwon_choi/codex-failover
 ```
 
 Then run:
@@ -55,7 +55,7 @@ This installs the published package to your PATH and sets up the Codex config.
 ## Setup and run
 
 ```bash
-npm install -g codex-failover
+npm install -g @sungwon_choi/codex-failover
 codex-failover install
 codex-failover start
 ```

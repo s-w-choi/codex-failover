@@ -33,17 +33,21 @@ jobs:
         id: publish_decision
         run: |
           LOCAL_VERSION="$(node -p "require('./package.json').version")"
+          PKG_NAME="$(node -p "require('./package.json').name")"
           echo "version=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "package=$PKG_NAME" >> "$GITHUB_OUTPUT"
 
-          if npm view "codex-failover@${LOCAL_VERSION}" version >/dev/null 2>&1; then
+          echo "Package: $PKG_NAME"
+          echo "Local version: $LOCAL_VERSION"
+
+          if npm view "${PKG_NAME}@${LOCAL_VERSION}" version >/dev/null 2>&1; then
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            echo "reason=local version is already published" >> "$GITHUB_OUTPUT"
-            echo "Local version: $LOCAL_VERSION"
-            echo "Reason: local version exists in npm registry"
+            echo "reason=${PKG_NAME}@${LOCAL_VERSION} already published" >> "$GITHUB_OUTPUT"
+            echo "Reason: version already exists in npm registry"
             exit 0
           fi
 
-          PUBLISHED_VERSION="$(npm view codex-failover version 2>/dev/null || echo '0.0.0' )"
+          PUBLISHED_VERSION="$(npm view "${PKG_NAME}" version 2>/dev/null || echo '0.0.0' )"
           PUBLISHED_VERSION="${PUBLISHED_VERSION//\"/}"
           PUBLISHED_VERSION="$(echo "$PUBLISHED_VERSION" | tr -d '\n\r ' )"
 
@@ -51,15 +55,14 @@ jobs:
             PUBLISHED_VERSION="0.0.0"
           fi
 
-          echo "Local version: $LOCAL_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
 
           if npx --yes semver "$LOCAL_VERSION" -r ">${PUBLISHED_VERSION}" >/tmp/semver_check.txt 2>/tmp/semver_err.txt; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
-            echo "reason=local version is greater than npm" >> "$GITHUB_OUTPUT"
+            echo "reason=${LOCAL_VERSION} > ${PUBLISHED_VERSION}" >> "$GITHUB_OUTPUT"
           else
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            echo "reason=local version is not greater than npm" >> "$GITHUB_OUTPUT"
+            echo "reason=${LOCAL_VERSION} <= ${PUBLISHED_VERSION}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies
@@ -104,7 +107,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.publish_decision.outputs.version }}
-          name: codex-failover v${{ steps.publish_decision.outputs.version }}
+          name: ${{ steps.publish_decision.outputs.package }} v${{ steps.publish_decision.outputs.version }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
