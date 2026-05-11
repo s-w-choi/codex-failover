@@ -8,7 +8,8 @@
     "codex-failover": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/bundle.mjs",
+    "bundle": "node scripts/bundle.mjs",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/cli.js",
     "lint": "eslint src --ext .ts",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@codex-failover/test-harness": "workspace:*",
+    "esbuild": "^0.28.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
