@@ -79,6 +79,7 @@ codex-failover status --watch
 codex-failover logs
 codex-failover install
 codex-failover restore
+codex-failover uninstall
 ```
 
 ## Codex configuration flow
@@ -93,6 +94,15 @@ This updates your `~/.codex/config.toml` to use the local router. To roll back:
 
 ```bash
 codex-failover restore
+```
+
+## Uninstall
+
+To completely remove codex-failover (stops processes, restores config, deletes data):
+
+```bash
+codex-failover uninstall
+npm uninstall -g @sungwon_choi/codex-failover
 ```
 
 ## Development
